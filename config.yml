@@ -1,0 +1,9 @@
+# Server-only configuration. Never serve this file to participants.
+# Supported compositions (humans + ai = 3): 3+0, 2+1, or 1+2.
+participants:
+  humans: 3
+  ai: 0
+
+# Duration of each discussion and voting phase, in seconds.
+discussion_seconds: 120
+voting_seconds: 30
