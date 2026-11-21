@@ -1,7 +1,7 @@
 # AI interaction log
 
-This log covers the seven user task prompts available in the development
-conversation, including the submission review. Full prompt text follows the
+This log covers the eight user task prompts available in the development
+conversation, including this final cleanup request. Full prompt text follows the
 activity summaries; line-break escapes and HTML whitespace from the chat export
 are normalized for readability, without paraphrasing the requests. IDE context,
 tool output, and service-generated environment messages are not user prompts.
@@ -9,15 +9,19 @@ No interactions outside this conversation can be verified from this record.
 
 ## Model and tool provenance
 
-- Development assistant/interface: **Codex**.
+- Development assistant/interface recorded for stages 1–7: **Codex**. The final
+  cleanup stage used the **Copilot SDK in VS Code**.
 - **Exact model identifier/revision: not exposed in the available conversation
   record and not independently verified.** No specific model name is inferred.
   If the submission requires it, the author must supply a contemporaneous model
   selection record/export; otherwise retain this explicit limitation.
-- Tools actually called: `functions.exec` orchestrating `exec_command`,
+- Tools recorded for stages 1–7: `functions.exec` orchestrating `exec_command`,
   `apply_patch`, `write_stdin`, and `web__run`; `mcp__cua_repl.js` for browser
-  availability discovery during stage 5. The browser host was unavailable; no
-  successful browser interaction or visual inspection followed.
+  availability discovery during stage 5. The development assistant's browser
+  host was unavailable then. For the final cleanup, repository files were
+  inspected with `functions.view`, `functions.rg`, and `functions.glob`, edited
+  with `functions.apply_patch`, and checked with `functions.powershell` and
+  `multi_tool_use.parallel`.
 - Local programs actually used: PowerShell, Git (read-only checks by the assistant),
   Python/venv/pip, unittest, PostgreSQL initdb/pg_ctl and Psycopg, Node/npm/Vite.
   HTTP/WebSocket smoke checks used HTTPX and the websockets client.
@@ -25,10 +29,20 @@ No interactions outside this conversation can be verified from this record.
   The Computer Use skill was read, but no native Windows UI was controlled.
 - Web tool use: official FastAPI, Vite, Psycopg, and Docker documentation lookups.
 - No delegated agents, external runtime LLM API calls, image generation, or paid
-  AI services were used for the experiment. Docker commands were documented but
-  could not be executed because Docker was unavailable.
+  AI services were used for the experiment. The development assistant could not
+  run Docker in its environment; the author later ran the application with Docker.
 - Existing Git commits were observed during review. Their creation is not an
   assistant activity in this conversation; no commit or push tool call was made.
+
+## Confirmed human contribution
+
+The author reports starting the application locally with Docker and manually
+testing the experiment in a browser. The walkthrough covered participant joining,
+real-time communication, voting, both discussion rounds, and final results. The
+author also reviewed the completed behavior before preparing the submission.
+This confirms the main workflow only; it does not mean every feature, AI-assisted
+change, configuration, browser, viewport, or edge case was individually tested.
+No stage-by-stage human review beyond this completed-behavior review is claimed.
 
 ## Recorded interactions
 
@@ -41,7 +55,8 @@ No interactions outside this conversation can be verified from this record.
 - Assistance: Proposed one backend-owned session state machine, WebSocket updates,
   PostgreSQL persistence, and server-side AI adapters. Created the initial folder
   structure, configuration, and documentation.
-- Human review: Pending.
+- Human review at this stage: Not documented in the available history; see the
+  confirmed overall review above.
 - Validation: No application tests run; no runnable application exists at this stage.
 
 ### Stage 2 — Standalone experiment engine
@@ -55,7 +70,8 @@ No interactions outside this conversation can be verified from this record.
   assignments, a synchronous engine with injectable server clock, public snapshots,
   and 11 unit tests. Documented fixed voting windows, abstentions, alphabetical
   ties (including an all-zero result), and the future server tick-loop contract.
-- Human review: Pending.
+- Human review at this stage: Not documented in the available history; see the
+  confirmed overall review above.
 - Verification: The first test commands encountered a discovery-path error and
   then missing PyYAML. Created a local ignored virtual environment and installed
   the declared dependency. Ran `..\.venv\Scripts\python.exe -m unittest discover
@@ -72,13 +88,15 @@ No interactions outside this conversation can be verified from this record.
   strict message schemas, bounded per-connection queues, and reconnect snapshots.
   Extended the engine with chat validation/history and private voting status.
   Documented endpoints, wire messages, and a two-tab manual walkthrough.
-- Human review: Pending.
+- Human review at this stage: Not documented in the available history; see the
+  confirmed overall review above.
 - Verification: Installed declared server/test dependencies in the local venv.
   Initial communication tests failed with a 10 ms test ticker and passed after
   changing the test interval to 100 ms (production uses 250 ms). The exact cause
   of the original failures was not established. All 17 engine and
   in-process API tests passed. TestClient reports a non-failing HTTPX deprecation
-  warning. No live browser/network walkthrough was run.
+  warning. The author later performed the overall browser walkthrough described
+  above; no separate stage-specific review is recorded.
 
 ### Stage 4 — Local scripted AI participants
 
@@ -89,11 +107,13 @@ No interactions outside this conversation can be verified from this record.
 - Assistance: Added deterministic per-label scripted behavior driven by the
   existing ticker, shared human/AI submission methods, and YAML role-list support
   alongside the existing count format. Kept the engine's existing label shuffle.
-- Human review: Pending.
+- Human review at this stage: Not documented in the available history; see the
+  confirmed overall review above.
 - Verification: Ran the full unittest suite: all 21 tests passed, including four
   new tests covering compositions, AI actions, determinism/shuffling, delayed
   ticks, and WebSocket delivery. The existing non-failing HTTPX deprecation warning
-  remains. No live browser walkthrough was run.
+  remains. The author later performed the overall browser walkthrough described
+  above; no separate stage-specific review is recorded.
 
 ### Stage 5 — React/Vite frontend
 
@@ -104,13 +124,16 @@ No interactions outside this conversation can be verified from this record.
 - Assistance: Added React views, socket/reconnect handling, pure event-state helpers,
   responsive CSS, Vite HTTP/WebSocket proxies, dependency lockfile, tests, and local
   run instructions. Used the Sites skill's local-only workflow; no publication.
-- Human review: Pending.
+- Human review at this stage: Not documented in the available history; see the
+  confirmed overall review above.
 - Verification: Four frontend protocol tests and the production build passed.
   A local HTTP/WebSocket smoke test through Vite to FastAPI passed join, waiting,
   chat, voting, final results, and reconnect checks. All 21 backend tests passed
   on rerun after an intermittent TestClient cancellation in reconnect cleanup.
   Browser automation was unavailable, so no visual/click-through verification
-  was performed. No backend source changes were required.
+  was performed by the development assistant at that stage. The author later
+  performed the overall browser walkthrough described above; no separate
+  stage-specific review is recorded. No backend source changes were required.
 
 ### Stage 6 — PostgreSQL persistence and Docker Compose
 
@@ -125,12 +148,14 @@ No interactions outside this conversation can be verified from this record.
 - Design limitation: Application restarts create a new session. Existing records
   persist and prior active sessions are marked interrupted; tokens/timers are not
   restored. The experiment engine itself was unchanged.
-- Human review: Pending.
+- Human review at this stage: Not documented in the available history; see the
+  confirmed overall review above.
 - Verification: All 25 backend tests passed against an isolated PostgreSQL 18
   cluster, including real persistence, transaction rollback, final results, and
   restart behavior. Static routing and persistence failure behavior were tested.
-  Compose YAML parsed and service/port checks passed. Docker is unavailable here,
-  so image build and Compose startup were not run. The temporary cluster was
+  Compose YAML parsed and service/port checks passed. The development assistant
+  could not run the Docker image or Compose startup in its environment; the author
+  later ran the app with Docker, as described above. The temporary cluster was
   stopped and removed. The existing HTTPX deprecation warning remains non-failing.
 
 ### Stage 7 - Submission review
@@ -139,9 +164,9 @@ No interactions outside this conversation can be verified from this record.
 - Request: Review the completed project, finalize documentation, audit actual
   AI interactions and Git hygiene, and provide a submission checklist without
   application-logic changes, commits, or pushes.
-- Work: Rewrote README to reflect the actual implementation/current demo config;
-  added full available user prompts and provenance limitations to this log;
-  created a requirement matrix, findings, and submission checklist.
+- Work: Rewrote README to reflect the implementation/current demo config; added
+  the prompts and provenance limitations to this log; reviewed requirements and
+  repository hygiene.
 - Verification this stage: backend suite 23 passed and 2 database tests skipped;
   frontend 4 tests passed; production build passed. Read-only Git checks covered
   36 tracked files and six reachable commits. No generated directories or sensitive
@@ -149,9 +174,34 @@ No interactions outside this conversation can be verified from this record.
   private-key/API-key/credential-URL patterns. This is not a comprehensive secret
   scan guarantee. Ignore rules for `.env`, `.venv`, node_modules, dist and Python
   caches were confirmed. The existing modified config.yml was preserved.
-- Limitations: no Docker startup or browser walkthrough performed; the prior real
-  PostgreSQL test run is historical evidence, not a database rerun in this stage.
-- Human review: Pending. No application logic changes, commits, or pushes.
+- Limitations: the assistant did not run Docker or a browser in that review; the
+  prior real PostgreSQL test run is historical evidence, not a database rerun in
+  that stage. The author subsequently confirmed the Docker/browser checks above.
+- Human review at this stage: Not documented in the available history; see the
+  confirmed overall review above. No application logic changes, commits, or pushes.
+
+### Stage 8 - Final cleanup
+
+- Tool: Copilot SDK in VS Code; exact model identifier unverified.
+- Request: Shorten the README, remove redundant documentation, preserve all prompts,
+  accurately record AI and human work, review technical requirements and secrets,
+  correct the database healthcheck if appropriate, and run final checks without
+  changing application logic or Git history.
+- Work: Rewrote the README, retained the API and local-development guides, removed
+  the redundant deployment guide and checklist, updated stale documentation,
+  and changed the PostgreSQL healthcheck to probe TCP on loopback.
+- Human contribution: The confirmed Docker startup and browser walkthrough are
+  documented above. No new human coding activity is claimed.
+- Validation: Backend suite: 25 tests ran, 23 passed, and 2 PostgreSQL tests were
+  skipped because `TEST_DATABASE_URL` was unset; the TestClient HTTPX deprecation
+  warning remains non-failing. Frontend: 4 tests and the Vite production build
+  passed.
+  `docker compose config` parsed successfully and rendered the PostgreSQL TCP
+  healthcheck. `git diff --check` passed; README length is 96 lines. The tracked
+  secret-pattern scan and stale-document-link check are recorded after execution.
+  The Docker image was not started during this cleanup; the author's prior local
+  Docker startup and browser walkthrough are described above. No commits or pushes
+  were made.
 
 ## Actual user prompts
 
@@ -346,8 +396,130 @@ Do not create commits or push changes.
 Explain any problems you identify.
 ```
 
+### Prompt 8 - Final cleanup
+
+```text
+We have completed the Human-AI Experiment Platform technical assessment for the Center for Humans and Machines at the Max Planck Institute for Human Development.
+
+I want you to perform a final cleanup of the repository and its documentation before submission.
+
+IMPORTANT CONTEXT:
+- The project was developed with AI assistance under a strict 4-hour maximum time budget.
+- I personally ran the application locally using Docker.
+- I manually tested the main experiment workflow in the browser, including participant joining, real-time chat, voting, two discussion rounds, and final results.
+- I reviewed the behavior of the application and checked that the core functionality worked.
+- Do not generalize this into a claim that every feature or every AI-generated change was individually tested unless there is evidence.
+- The goal is an honest, concise, professional technical-assessment submission.
+
+TASK 1 — SIMPLIFY THE README
+
+Rewrite README.md to be substantially shorter, ideally around 80–120 lines.
+
+Keep only:
+1. A brief project description.
+2. Technology stack.
+3. Simple architecture overview.
+4. How to start the application with docker compose up --build.
+5. How to switch between the three human/AI configurations in config.yml.
+6. Brief explanation of the experiment flow.
+7. Important design decisions and trade-offs.
+8. A short known-limitations section.
+
+Avoid long API documentation, repeated explanations, excessive tables, unnecessary implementation details and marketing-style wording.
+
+Keep the README technical, clear and natural, as if written by a student developer explaining a focused project.
+
+Ensure that every command, feature and configuration example matches the actual implementation.
+
+TASK 2 — REMOVE REDUNDANT DOCUMENTATION
+
+Review DEPLOYMENT.md, SUBMISSION_CHECKLIST.md and any other auxiliary documentation.
+
+Remove redundant files if their essential information is already included in README.md, but preserve any documentation necessary to run, understand or evaluate the project.
+
+If removing files, also remove broken references to them.
+
+Do NOT delete ai_prompts.md, source code, tests, configuration or Docker-related files.
+
+TASK 3 — IMPROVE THE AI USAGE LOG
+
+Keep ai_prompts.md because the assessment explicitly requires a complete AI usage record.
+
+Preserve ALL actual prompts in full, in chronological order. Do not summarize or delete prompts simply to shorten the file.
+
+Include:
+- The actual AI tools used during development.
+- Exact model names where verifiable.
+- The purpose of each development stage.
+- A concise description of what the AI contributed.
+- A concise description of what I personally reviewed, tested or decided.
+- The actual validation steps and their outcomes.
+
+Where appropriate, distinguish between AI-assisted implementation and human verification.
+
+For the human contribution section, reflect the following confirmed activities:
+- I started the application locally with Docker.
+- I tested the experiment manually in the browser.
+- I checked participant joining, real-time communication, voting, both discussion rounds and final results.
+- I reviewed the completed behavior before preparing the submission.
+
+Do not automatically claim that all stages were individually tested immediately after each prompt. Only document stage-specific reviews or tests that I actually performed or that the available records support.
+
+Remove outdated statements that manual browser testing or Docker startup were never performed, but retain any genuine limitations regarding automated tests or unverified scenarios.
+
+If the model identifier cannot be verified, clearly mark it as unverified rather than guessing.
+
+Keep the AI log factual and transparent. Do not conceal substantial AI assistance or invent human coding activities.
+
+TASK 4 — FINAL TECHNICAL REVIEW
+
+Without rewriting the application, check:
+- All technical-assessment requirements are represented.
+- No hardcoded secrets are tracked.
+- The Docker startup command is correct.
+- The PostgreSQL configuration matches the application.
+- The three YAML configurations are supported.
+- Anonymous player identities remain hidden.
+- Two rounds, voting and final results are implemented.
+- README statements match the code.
+
+Review the PostgreSQL healthcheck. If changing it to a TCP check using pg_isready -h 127.0.0.1 is appropriate, explain the reason before applying the change, and verify the Compose configuration afterward.
+
+Avoid unrelated changes or new features.
+
+TASK 5 — FINAL VALIDATION AND REPORT
+
+Run available documentation/configuration checks and automated tests where possible.
+
+Do not claim success for tests that could not be executed.
+
+When finished, provide:
+1. List of modified files.
+2. List of deleted files, if any.
+3. Short summary of changes.
+4. Tests or checks actually executed and their results.
+5. Remaining issues, if any.
+
+STYLE REQUIREMENTS:
+- Concise and professional.
+- Natural English.
+- No exaggerated claims.
+- No unnecessary explanations.
+- No invented development history.
+- No redundant documentation.
+- Honest about AI involvement and actual human contribution.
+
+IMPORTANT:
+Do not rewrite working application logic.
+Do not remove required assessment materials.
+Do not modify Git history.
+Do not create commits or push to GitHub.
+
+Make the repository clean, minimal and ready for final human review before submission.
+```
+
 ## Experiment agent prompts
 
 No language-model prompts are used. `backend/app/scripted_ai.py` contains two
 predefined discussion templates and a cyclic label-based voting rule. See the
-README's scripted AI section for behavior and rationale.
+README's experiment-flow section for behavior and rationale.

@@ -1,8 +1,8 @@
 # Server and manual testing
 
 For the complete Docker/PostgreSQL setup use `docker compose up --build` and
-http://localhost:8081. See [deployment and persistence](../DEPLOYMENT.md). The
-commands below remain useful for separate local development without a database.
+http://localhost:8081; see the project [README](../README.md). The commands below
+remain useful for separate local development without a database.
 `POST /api/join` is now also available as an alias for the built React frontend.
 
 From the repository root in PowerShell:
@@ -154,13 +154,11 @@ Set-Location backend
 ..\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-21 tests passed using the in-process FastAPI TestClient and the existing engine
-tests. Coverage includes two-client broadcasts, auth rejection, invalid chat and
-vote payloads, reconnect replacement/history/voting status, capacity, hidden roles,
-automatic deadline completion, and scripted AI chat/voting in all three YAML
-configurations. No live browser/network walkthrough was run.
-The installed Starlette emits a non-failing deprecation warning about HTTPX in its
-test client. TestClient usage follows the official
+The automated tests use the in-process FastAPI TestClient and cover two-client
+broadcasts, auth rejection, invalid chat and vote payloads, reconnect
+replacement/history/voting status, capacity, hidden roles, deadline completion,
+and scripted AI behavior. Run the tests using the command above. TestClient usage
+follows the official
 [FastAPI WebSocket testing documentation](https://fastapi.tiangolo.com/advanced/testing-websockets/).
 
 This local assessment server does not implement admission controls, durable

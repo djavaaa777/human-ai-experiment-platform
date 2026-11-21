@@ -2,7 +2,7 @@
 
 For the full application with PostgreSQL, use `docker compose up --build` from
 the repository root and open http://localhost:8081. FastAPI serves the production
-build directly; see [deployment instructions](../DEPLOYMENT.md).
+build directly; see the project [README](../README.md).
 
 Requires Node.js 20.19+ or 22.12+ (tested with Node 24). The app uses React and
 Vite with plain CSS; no component library or client-side phase engine.
@@ -77,12 +77,6 @@ npm test
 npm run build
 ```
 
-Four protocol-state tests and the production build passed. A real local network
-smoke test also passed through Vite to FastAPI, covering join/waiting, chat, both
-voting rounds, final results, and token reconnect. Temporary servers used a short
-test configuration without changing `config.yml`, then were stopped.
-
-All 21 backend tests passed on rerun; the first run encountered an intermittent
-TestClient cancellation during reconnect cleanup. Backend files were unchanged.
-Browser automation was unavailable, so rendered layout and click-through behavior
-have not been visually verified.
+The protocol tests and production build are automated checks. A manual browser
+walkthrough of the Docker application confirmed the main experiment flow; this
+does not establish that every browser, viewport, or edge case was tested.

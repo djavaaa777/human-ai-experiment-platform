@@ -11,7 +11,7 @@ services:
       - db_secret:/run/db-secret
       - ./docker/start-postgres.sh:/bootstrap/start-postgres.sh:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U experiment -d experiment"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U experiment -d experiment"]
       interval: 3s
       timeout: 3s
       retries: 20
