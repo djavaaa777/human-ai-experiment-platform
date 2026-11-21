@@ -35,6 +35,23 @@ keys, participant data, or other secrets.
   -s tests -v` from `backend/`: all 11 tests passed. No frontend, database,
   WebSocket, or Docker tests were run.
 
+### Stage 3 — In-memory FastAPI communication
+
+- Tool: Codex
+- Request summary: Add private participant identities and reconnect tokens,
+  WebSocket chat/voting/state/countdowns, server validation, broadcasts, and
+  reconnect support around the existing engine. No frontend, AI, database, or commits.
+- Assistance: Added a FastAPI lifespan ticker, an in-memory identity/delivery hub,
+  strict message schemas, bounded per-connection queues, and reconnect snapshots.
+  Extended the engine with chat validation/history and private voting status.
+  Documented endpoints, wire messages, and a two-tab manual walkthrough.
+- Human review: Pending.
+- Verification: Installed declared server/test dependencies in the local venv.
+  Initial communication tests failed with an overly aggressive 10 ms test ticker;
+  changed the test interval to 100 ms (production uses 250 ms). All 17 engine and
+  in-process API tests passed. TestClient reports a non-failing HTTPX deprecation
+  warning. No live browser/network walkthrough was run.
+
 ## Template for subsequent interactions
 
 ### Stage / topic

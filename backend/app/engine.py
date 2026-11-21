@@ -1,6 +1,7 @@
 """Synchronous state machine. Call only from one serialized server task/thread."""
 
 from collections import Counter
+from collections import deque
 from enum import Enum
 from random import SystemRandom
 from time import monotonic
@@ -37,6 +38,33 @@ class ExperimentSession:
         self._round = 0
         self._deadline: float | None = None
         self._votes: dict[int, dict[str, str]] = {1: {}, 2: {}}
+        self._messages: deque[dict] = deque(maxlen=100)
+        self._message_id = 0
+
+    def post_chat(self, player: str, text: str, *, round_number: int) -> dict:
+        """Validate discussion chat and retain the last 100 messages for reconnects."""
+        self.tick()
+        if self._phase != Phase.DISCUSSION:
+            raise ExperimentError("Chat is only open during discussion")
+        if type(round_number) is not int or round_number != self._round:
+            raise ExperimentError("Message belongs to a different round")
+        if player not in LABELS:
+            raise ExperimentError("Unknown player label")
+        if not isinstance(text, str) or not text.strip() or len(text) > 1000:
+            raise ExperimentError("Chat must contain 1 to 1000 characters and not be blank")
+        self._message_id += 1
+        message = {"id": self._message_id, "player": player, "text": text.strip(), "round": self._round}
+        self._messages.append(message)
+        return dict(message)
+
+    def chat_history(self) -> list[dict]:
+        return [dict(message) for message in self._messages]
+
+    def voted_rounds(self, player: str) -> list[int]:
+        """Private reconnect information for the authenticated player only."""
+        if player not in LABELS:
+            raise ExperimentError("Unknown player label")
+        return [number for number, votes in self._votes.items() if player in votes]
 
     def join_human(self) -> str:
         """Allocate one human slot; the last join starts discussion round one."""

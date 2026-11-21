@@ -1,8 +1,10 @@
 # Three-player group decision experiment
 
 Core Python experiment engine for a Student Research Assistant technical
-assessment at the Center for Humans and Machines. Transport, frontend, database,
-AI behavior, and Docker integration are not implemented yet.
+assessment at the Center for Humans and Machines. A minimal FastAPI HTTP/WebSocket
+server now wraps the engine using in-memory storage. Frontend, database,
+AI behavior, and Docker integration are not implemented yet. See
+[server setup, protocol, and manual testing](backend/API.md).
 
 ## Proposed architecture
 
@@ -44,9 +46,14 @@ backend/
     __init__.py
     config.py
     engine.py
+    main.py
+    session.py
   tests/
     test_engine.py
+    test_api.py
   requirements.txt
+  requirements-dev.txt
+  API.md
 frontend/
   src/
     .gitkeep
@@ -56,8 +63,8 @@ ai_prompts.md
 README.md
 ```
 
-In later stages, add the FastAPI entry point,
-database models/access, and AI adapter within `backend/app/`. Add the React entry
+In later stages, add database models/access and an AI adapter within
+`backend/app/`. Add the React entry
 point and views within `frontend/src/`. Add dependency manifests, Dockerfiles,
 and Compose at that point. Avoid empty layers and abstractions until needed.
 
@@ -109,8 +116,8 @@ only humans need to join. Roles are randomly assigned to labels so A, B, or C
 does not consistently mean human or AI. Do not serialize the session/config
 objects; use only `public_state()` as the shared client payload.
 
-The engine is synchronous and has no background thread. A future server scheduler
-must call `tick()` regularly, even when clients send no actions, and serialize
+The engine is synchronous and has no background thread. The FastAPI server scheduler
+calls `tick()` regularly, even when clients send no actions, and serializes
 all operations on a session. This is the integration contract for automatic
 deadline progression. Reads and votes also process elapsed deadlines. The clock
 can be injected for deterministic tests, but must never come from client input.
@@ -127,10 +134,13 @@ Final totals sum both rounds. **Ties are resolved alphabetically by label** to
 make the result deterministic without a third round. This favors earlier labels
 in a tie; if nobody votes, all totals are zero and A wins by the same rule.
 
-The future transport must bind each human connection to its allocated label and
-derive `voter` from that binding. The core engine validates labels and phases,
-but does not implement authentication. `join_human()` allocates a new slot per
-call; reconnect and duplicate-join handling belong in that future binding layer.
+The transport binds each human connection to its allocated label using a private
+token and derives `voter` from that binding. The core engine validates labels and
+phases, but does not implement authentication. `join_human()` allocates a new slot
+per call; the transport reconnects with the existing token instead of joining again.
+The engine also exposes `post_chat()` for discussion/round/text validation,
+`chat_history()` for the last 100 messages, and `voted_rounds(player)` for private
+reconnect status.
 
 ## Running the unit tests
 
@@ -138,14 +148,14 @@ From the project root in PowerShell (with Python installed/on PATH):
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r backend/requirements.txt
+.\.venv\Scripts\python.exe -m pip install -r backend/requirements-dev.txt
 Set-Location backend
 ..\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
 On macOS/Linux, use `python3 -m venv .venv`, install with
-`.venv/bin/python -m pip install -r backend/requirements.txt`, then run
+`.venv/bin/python -m pip install -r backend/requirements-dev.txt`, then run
 `../.venv/bin/python -m unittest discover -s tests -v` from `backend/`.
 
-Tests use the standard-library `unittest` runner and a fake clock: no sleeps,
-network services, or database are needed. PyYAML is the only runtime dependency.
+Tests use the standard-library `unittest` runner, a fake clock, and FastAPI's
+in-process TestClient. No external services or database are needed.
