@@ -1,5 +1,10 @@
 # Server and manual testing
 
+For the complete Docker/PostgreSQL setup use `docker compose up --build` and
+http://localhost:8081. See [deployment and persistence](../DEPLOYMENT.md). The
+commands below remain useful for separate local development without a database.
+`POST /api/join` is now also available as an alias for the built React frontend.
+
 From the repository root in PowerShell:
 
 ```powershell

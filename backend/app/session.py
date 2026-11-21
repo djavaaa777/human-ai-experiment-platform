@@ -5,21 +5,26 @@ import secrets
 
 from .engine import ExperimentSession
 from .scripted_ai import ScriptedPlayers
+from .storage import PersistenceError
 
 
 class SessionHub:
-    def __init__(self, engine: ExperimentSession):
+    def __init__(self, engine: ExperimentSession, store=None):
         self.engine = engine
+        self.store = store
+        self.failed = False
         self._tokens: dict[str, str] = {}
         self._connections: dict[str, asyncio.Queue] = {}
         self._scripted_players = ScriptedPlayers(engine.ai_labels())
 
     def tick(self) -> None:
+        self.ensure_available()
         self.engine.tick()
         self._scripted_players.step(self)
         self.broadcast_state()
 
     def join(self) -> dict:
+        self.ensure_available()
         player = self.engine.join_human()
         token = secrets.token_urlsafe(32)
         self._tokens[token] = player
@@ -30,6 +35,7 @@ class SessionHub:
         return self._tokens.get(token)
 
     def connect(self, player: str) -> asyncio.Queue:
+        self.ensure_available()
         old = self._connections.get(player)
         if old is not None:
             self._close_queue(old, 4001)
@@ -68,7 +74,26 @@ class SessionHub:
             self.send(queue, event)
 
     def state_event(self) -> dict:
-        return {"type": "state", "state": self.engine.public_state()}
+        state = self.engine.public_state()
+        self.persist(state)
+        return {"type": "state", "state": state}
+
+    def ensure_available(self):
+        if self.failed:
+            raise PersistenceError("Database write failed; restart the application before continuing")
+
+    def persist(self, state, **event):
+        self.ensure_available()
+        if self.store is not None:
+            try:
+                self.store.save(state, **event)
+            except PersistenceError:
+                # Never acknowledge uncommitted data or continue with diverged memory.
+                self.failed = True
+                for queue in list(self._connections.values()):
+                    self._close_queue(queue, 1011)
+                self._connections.clear()
+                raise
 
     def broadcast_state(self) -> None:
         self.broadcast(self.state_event())
@@ -80,12 +105,16 @@ class SessionHub:
             self.submit_vote(player, action.target, round_number=action.round)
 
     def submit_chat(self, player: str, text: str, *, round_number: int) -> None:
+        self.ensure_available()
         message = self.engine.post_chat(player, text, round_number=round_number)
+        self.persist(self.engine.public_state(), message=message)
         self.broadcast({"type": "chat", **message})
         self.broadcast_state()
 
     def submit_vote(self, player: str, target: str, *, round_number: int) -> None:
+        self.ensure_available()
         self.engine.cast_vote(player, target, round_number=round_number)
+        self.persist(self.engine.public_state(), vote={"player": player, "target": target, "round": round_number})
         # Human and scripted players use identical public envelopes.
         self.broadcast({"type": "vote_received", "player": player, "round": round_number})
         self.broadcast_state()

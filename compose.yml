@@ -1,0 +1,41 @@
+services:
+  db:
+    image: postgres:17-alpine
+    entrypoint: ["/bin/sh", "/bootstrap/start-postgres.sh"]
+    environment:
+      POSTGRES_USER: experiment
+      POSTGRES_DB: experiment
+      POSTGRES_PASSWORD_FILE: /run/db-secret/password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - db_secret:/run/db-secret
+      - ./docker/start-postgres.sh:/bootstrap/start-postgres.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U experiment -d experiment"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  app:
+    build: .
+    ports:
+      - "8081:8000"
+    environment:
+      PGHOST: db
+      PGPORT: "5432"
+      PGUSER: experiment
+      PGDATABASE: experiment
+      DB_PASSWORD_FILE: /run/db-secret/password
+    volumes:
+      - ./config.yml:/app/config.yml:ro
+      - db_secret:/run/db-secret:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=7)"]
+      interval: 10s
+      timeout: 8s
+      retries: 3
+volumes:
+  postgres_data:
+  db_secret:

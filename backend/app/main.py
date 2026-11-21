@@ -3,16 +3,19 @@
 import asyncio
 from contextlib import asynccontextmanager, suppress
 import json
+import os
 from pathlib import Path
 from time import monotonic
 from typing import Annotated, Literal
 
 from fastapi import FastAPI, HTTPException, Response, WebSocket, WebSocketDisconnect
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
 
 from .config import load_config
 from .engine import ExperimentError, ExperimentSession
 from .session import SessionHub
+from .storage import PostgresStore, PersistenceError
 
 
 class StrictMessage(BaseModel):
@@ -58,17 +61,28 @@ async def deliver(socket: WebSocket, queue: asyncio.Queue) -> None:
         await asyncio.wait_for(socket.send_json(event), timeout=5)
 
 
-def create_app(config=None, *, clock=monotonic, tick_seconds=0.25) -> FastAPI:
+def create_app(config=None, *, clock=monotonic, tick_seconds=0.25, store_factory=PostgresStore.from_environment, static_dir=None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app):
-        settings = config or load_config(Path(__file__).resolve().parents[2] / "config.yml")
-        hub = SessionHub(ExperimentSession(settings, clock=clock))
+        settings = config or load_config(os.getenv("CONFIG_PATH", Path(__file__).resolve().parents[2] / "config.yml"))
+        store = store_factory()
+        engine = ExperimentSession(settings, clock=clock)
+        if store is not None:
+            try:
+                store.start(settings, engine.ai_labels())
+            except BaseException:
+                store.close()
+                raise
+        hub = SessionHub(engine, store=store)
         app.state.hub = hub
 
         async def ticker():
             while True:
                 await asyncio.sleep(tick_seconds)
-                hub.tick()
+                try:
+                    hub.tick()
+                except PersistenceError:
+                    return  # Health becomes 503; restart is required, no silent data loss.
 
         task = asyncio.create_task(ticker())
         try:
@@ -77,13 +91,21 @@ def create_app(config=None, *, clock=monotonic, tick_seconds=0.25) -> FastAPI:
             task.cancel()
             with suppress(asyncio.CancelledError):
                 await task
+            if store is not None:
+                store.close()
 
     app = FastAPI(title="Group decision experiment", lifespan=lifespan)
 
     @app.get("/health")
     async def health():
+        hub = app.state.hub
+        if hub.failed or (hub.store is not None and not hub.store.healthy()):
+            raise HTTPException(status_code=503, detail="Database unavailable")
+        if hub.store is not None:
+            return {"status": "ok", "database": "ok"}
         return {"status": "ok"}
 
+    @app.post("/api/join", status_code=201, include_in_schema=False)
     @app.post("/join", status_code=201)
     async def join(response: Response):
         response.headers["Cache-Control"] = "no-store"
@@ -91,6 +113,8 @@ def create_app(config=None, *, clock=monotonic, tick_seconds=0.25) -> FastAPI:
             return app.state.hub.join()
         except ExperimentError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except PersistenceError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     @app.websocket("/ws")
     async def websocket(socket: WebSocket):
@@ -109,7 +133,11 @@ def create_app(config=None, *, clock=monotonic, tick_seconds=0.25) -> FastAPI:
         except WebSocketDisconnect:
             return
 
-        queue = hub.connect(player)
+        try:
+            queue = hub.connect(player)
+        except PersistenceError:
+            await socket.close(code=1011)
+            return
         writer = asyncio.create_task(deliver(socket, queue))
 
         async def receive_actions():
@@ -130,7 +158,7 @@ def create_app(config=None, *, clock=monotonic, tick_seconds=0.25) -> FastAPI:
             done, _ = await asyncio.wait((reader, writer), return_when=asyncio.FIRST_COMPLETED)
             for task in done:
                 task.result()
-        except (WebSocketDisconnect, OSError, asyncio.TimeoutError):
+        except (WebSocketDisconnect, OSError, asyncio.TimeoutError, PersistenceError):
             pass
         finally:
             hub.disconnect(player, queue)
@@ -140,6 +168,10 @@ def create_app(config=None, *, clock=monotonic, tick_seconds=0.25) -> FastAPI:
             with suppress(RuntimeError, OSError):
                 await socket.close()
 
+    assets = Path(static_dir or os.getenv("STATIC_DIR", Path(__file__).resolve().parents[2] / "frontend" / "dist"))
+    if assets.is_dir():
+        # Last route: API and WebSocket endpoints take precedence.
+        app.mount("/", StaticFiles(directory=assets, html=True), name="frontend")
     return app
 
 

@@ -84,6 +84,27 @@ keys, participant data, or other secrets.
   Browser automation was unavailable, so no visual/click-through verification
   was performed. No backend source changes were required.
 
+### Stage 6 — PostgreSQL persistence and Docker Compose
+
+- Tool: Codex
+- Request summary: Persist sessions, chat, votes and results; package the React
+  build with FastAPI; add two-service Compose on host port 8081; keep configuration
+  in YAML and credentials out of source; explain restart limitations. No commits.
+- Assistance: Added a three-table schema and parameterized Psycopg repository,
+  commit-before-broadcast integration, fail-closed write behavior, static serving,
+  and `/api/join` alias. Added a multi-stage Dockerfile, Compose healthchecks,
+  generated password volume, and deployment/verification documentation.
+- Design limitation: Application restarts create a new session. Existing records
+  persist and prior active sessions are marked interrupted; tokens/timers are not
+  restored. The experiment engine itself was unchanged.
+- Human review: Pending.
+- Verification: All 25 backend tests passed against an isolated PostgreSQL 18
+  cluster, including real persistence, transaction rollback, final results, and
+  restart behavior. Static routing and persistence failure behavior were tested.
+  Compose YAML parsed and service/port checks passed. Docker is unavailable here,
+  so image build and Compose startup were not run. The temporary cluster was
+  stopped and removed. The existing HTTPX deprecation warning remains non-failing.
+
 ## Template for subsequent interactions
 
 ### Stage / topic

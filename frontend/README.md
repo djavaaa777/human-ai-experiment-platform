@@ -1,5 +1,9 @@
 # React experiment client
 
+For the full application with PostgreSQL, use `docker compose up --build` from
+the repository root and open http://localhost:8081. FastAPI serves the production
+build directly; see [deployment instructions](../DEPLOYMENT.md).
+
 Requires Node.js 20.19+ or 22.12+ (tested with Node 24). The app uses React and
 Vite with plain CSS; no component library or client-side phase engine.
 

@@ -3,16 +3,17 @@
 Core Python experiment engine for a Student Research Assistant technical
 assessment at the Center for Humans and Machines. A minimal FastAPI HTTP/WebSocket
 server now wraps the engine using in-memory storage and local scripted AI players.
-The React/Vite frontend is implemented; database and Docker integration remain
-deferred. See [frontend setup and testing](frontend/README.md) and
+The React/Vite frontend and PostgreSQL persistence are implemented. Run the full
+application with `docker compose up --build`, then open **http://localhost:8081**.
+See [Docker deployment, database verification, and restart limitations](DEPLOYMENT.md),
+[frontend setup and testing](frontend/README.md), and
 [server setup, protocol, and manual testing](backend/API.md).
 
-## Proposed architecture
+## Architecture
 
-Use three Docker Compose services: a React frontend (Vite), a Python FastAPI
-backend, and PostgreSQL. Compose will eventually build and start all three with
-`docker compose up --build`. Compose files are deferred. The frontend and backend
-currently run separately using the commands in `frontend/README.md`.
+Use two Docker Compose services: PostgreSQL and FastAPI, which serves the built
+React frontend along with its API and WebSocket endpoint. Vite remains available
+for separate frontend development using the commands in `frontend/README.md`.
 
 - **React:** Render the waiting room, discussion, vote, and results views from
   server state. Send participant actions to the backend; display its deadlines.
@@ -20,9 +21,9 @@ currently run separately using the commands in `frontend/README.md`.
   WebSockets for chat, actions, and authoritative state updates. A single session
   coordinator will advance waiting room → discussion 1 → vote 1 → discussion 2
   → vote 2 → final results. Enforce phase deadlines and action validity here.
-- **PostgreSQL:** Persist sessions, player assignments, messages, votes, and round
-  outcomes. Use a small SQLAlchemy persistence layer. Keep the initial schema
-  simple; introduce migrations when schema evolution becomes necessary.
+- **PostgreSQL:** Persist sessions, private role assignments, messages, votes, and
+  final results using parameterized Psycopg queries. Three tables are initialized
+  at startup; introduce migrations when schema evolution becomes necessary.
 - **AI adapter:** Run inside the backend and submit actions through the same
   validation path as humans. Keep provider calls outside the coordinator and
   apply a timeout so a slow AI response cannot block phase transitions.
@@ -50,10 +51,13 @@ backend/
     main.py
     session.py
     scripted_ai.py
+    storage.py
+    schema.sql
   tests/
     test_engine.py
     test_api.py
     test_scripted_ai.py
+    test_persistence.py
   requirements.txt
   requirements-dev.txt
   API.md
@@ -75,11 +79,14 @@ config.yml
 .gitignore
 ai_prompts.md
 README.md
+DEPLOYMENT.md
+Dockerfile
+compose.yml
+docker/start-postgres.sh
 ```
 
-In later stages, add database models/access within
-`backend/app/`, then Dockerfiles and Compose. Avoid empty layers and abstractions
-until needed.
+The state machine remains separate from storage and transport. Docker packages
+the frontend build and backend together; PostgreSQL runs as the second service.
 
 ## Configuration examples
 
@@ -142,10 +149,10 @@ test client.
 - Store research records in PostgreSQL, but defer automatic recovery of an
   interrupted session after a backend restart. Persistence alone does not provide
   timer or session recovery.
-- Use server deadlines to avoid client clock authority. Participant reconnect
-  remains deferred; missing votes and ties are handled as documented below.
-- Use a Vite development server in the initial Compose setup for speed. Production
-  hosting, authentication, and deployment hardening are outside this assessment.
+- Use server deadlines to avoid client clock authority. Token-based reconnect
+  works while the app process remains alive; restarts create a fresh session.
+- FastAPI serves the built frontend in Compose; Vite is only for development.
+  Production hosting and deployment hardening are outside this assessment.
 - Keep AI behind a small adapter so provider choice can change without rewriting
   session logic. Identity masking cannot guarantee that humans never guess which
   players are AI.
