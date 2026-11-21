@@ -68,8 +68,7 @@ def create_app(config=None, *, clock=monotonic, tick_seconds=0.25) -> FastAPI:
         async def ticker():
             while True:
                 await asyncio.sleep(tick_seconds)
-                hub.engine.tick()
-                hub.broadcast_state()
+                hub.tick()
 
         task = asyncio.create_task(ticker())
         try:

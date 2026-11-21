@@ -52,6 +52,21 @@ keys, participant data, or other secrets.
   in-process API tests passed. TestClient reports a non-failing HTTPX deprecation
   warning. No live browser/network walkthrough was run.
 
+### Stage 4 — Local scripted AI participants
+
+- Tool: Codex
+- Request summary: Support three human/AI compositions, shuffled labels, scripted
+  discussion messages and automatic valid votes, shared broadcasts, hidden roles,
+  and tests, without external LLM services or commits.
+- Assistance: Added deterministic per-label scripted behavior driven by the
+  existing ticker, shared human/AI submission methods, and YAML role-list support
+  alongside the existing count format. Kept the engine's existing label shuffle.
+- Human review: Pending.
+- Verification: Ran the full unittest suite: all 21 tests passed, including four
+  new tests covering compositions, AI actions, determinism/shuffling, delayed
+  ticks, and WebSocket delivery. The existing non-failing HTTPX deprecation warning
+  remains. No live browser walkthrough was run.
+
 ## Template for subsequent interactions
 
 ### Stage / topic
@@ -64,5 +79,6 @@ keys, participant data, or other secrets.
 
 ## Experiment agent prompts
 
-Not implemented yet. Record the AI players' runtime instructions here when they
-are introduced; keep those separate from this development assistance log.
+No language-model prompts are used. `backend/app/scripted_ai.py` contains two
+predefined discussion templates and a cyclic label-based voting rule. See the
+README's scripted AI section for behavior and rationale.

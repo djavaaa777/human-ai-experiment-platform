@@ -83,8 +83,8 @@ current state, and the reconnecting participant's voting status.
 
 For a two-person walkthrough, temporarily change `config.yml` to `humans: 2` and
 `ai: 1`, and optionally shorten discussion/voting durations to 20/15 seconds.
-Restart the server after editing. The reserved third slot will neither chat nor
-vote: AI behavior is intentionally not implemented. Restore your desired settings
+Restart the server after editing. The third slot will automatically send scripted
+discussion messages and vote in both rounds. Restore your desired settings
 after the walkthrough. With the unchanged three-human default, a third join is
 required before discussion starts.
 
@@ -149,16 +149,17 @@ Set-Location backend
 ..\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-17 tests passed using the in-process FastAPI TestClient and the existing engine
+21 tests passed using the in-process FastAPI TestClient and the existing engine
 tests. Coverage includes two-client broadcasts, auth rejection, invalid chat and
 vote payloads, reconnect replacement/history/voting status, capacity, hidden roles,
-and automatic deadline completion. No live browser/network walkthrough was run.
+automatic deadline completion, and scripted AI chat/voting in all three YAML
+configurations. No live browser/network walkthrough was run.
 The installed Starlette emits a non-failing deprecation warning about HTTPX in its
 test client. TestClient usage follows the official
 [FastAPI WebSocket testing documentation](https://fastapi.tiangolo.com/advanced/testing-websockets/).
 
 This local assessment server does not implement admission controls, durable
-recovery, participant accounts, frontend, AI agents, or database integration.
+recovery, participant accounts, frontend, external language models, or database integration.
 Disconnects do not free slots or pause deadlines. A lost join response/token is
 not recoverable; restart the server to begin a fresh session. Use HTTPS/WSS when
 hosting beyond a trusted local environment because tokens grant player access.

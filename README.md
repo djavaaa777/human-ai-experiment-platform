@@ -2,8 +2,8 @@
 
 Core Python experiment engine for a Student Research Assistant technical
 assessment at the Center for Humans and Machines. A minimal FastAPI HTTP/WebSocket
-server now wraps the engine using in-memory storage. Frontend, database,
-AI behavior, and Docker integration are not implemented yet. See
+server now wraps the engine using in-memory storage and local scripted AI players.
+Frontend, database, and Docker integration are not implemented yet. See
 [server setup, protocol, and manual testing](backend/API.md).
 
 ## Proposed architecture
@@ -48,9 +48,11 @@ backend/
     engine.py
     main.py
     session.py
+    scripted_ai.py
   tests/
     test_engine.py
     test_api.py
+    test_scripted_ai.py
   requirements.txt
   requirements-dev.txt
   API.md
@@ -63,7 +65,7 @@ ai_prompts.md
 README.md
 ```
 
-In later stages, add database models/access and an AI adapter within
+In later stages, add database models/access within
 `backend/app/`. Add the React entry
 point and views within `frontend/src/`. Add dependency manifests, Dockerfiles,
 and Compose at that point. Avoid empty layers and abstractions until needed.
@@ -79,7 +81,47 @@ The default is three humans. Change only the participant counts for other modes:
 | Two AI | 1 | 2 |
 
 `discussion_seconds: 120` and `voting_seconds: 30` apply to each round.
-AI credentials will come from environment variables, never this YAML file.
+Scripted AI requires no credentials.
+
+## Scripted AI participants
+
+The original count format remains supported. Alternatively, set `participants`
+to any of these YAML lists (keep the duration fields unchanged):
+
+```yaml
+participants: [human, human, human]
+# Or: participants: [human, human, ai]
+# Or: participants: [human, ai, ai]
+```
+
+List order does not fix role-to-label assignment. The engine shuffles A, B, and C
+at session creation, then privately reserves the required human and AI slots.
+The last required human join immediately starts discussion; no AI connection or
+join request is needed.
+
+`ScriptedPlayers.step()` runs from the existing server ticker. Once per discussion
+round, each AI nominates the next label cyclically (A nominates B, B nominates C,
+C nominates A). It submits one vote for that same label in each voting round.
+Round two uses a short follow-up message. Actions occur on the first scheduler
+tick that observes the phase, normally within 250 ms. A private completed-action
+set prevents repeat ticks from sending duplicate messages or votes.
+
+Humans and AI share `SessionHub.submit_chat()` and `submit_vote()`, which call the
+engine for validation and emit the same broadcast envelopes. Roles are never
+added to public events, join responses, or history. The script cannot change
+deadlines, and entirely missed phases are not replayed after a scheduler stall.
+
+Scripted behavior was chosen for the time-limited assessment because it is easy
+to explain, test, and reproduce, runs offline, and needs no credentials, external
+LLM calls, paid services, or additional dependencies. For a fixed label assignment
+its messages and votes are deterministic; only role assignment is randomized.
+This is a functional simulation, not an adaptive conversational model. Repeated
+wording and timing may let participants infer roles despite role-free payloads.
+
+The full suite now contains 21 passing tests, including all three YAML role lists,
+AI actions in both rounds, duplicate suppression, label shuffling, deterministic
+behavior, expired-phase handling, and delivery through the in-process WebSocket
+test client.
 
 ## Scope and trade-offs
 

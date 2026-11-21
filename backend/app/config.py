@@ -30,6 +30,11 @@ def load_config(path: str | Path) -> ExperimentConfig:
     if not isinstance(data, dict) or set(data) != {"participants", "discussion_seconds", "voting_seconds"}:
         raise ValueError("Expected participants, discussion_seconds, and voting_seconds")
     participants = data["participants"]
+    # Accept explicit role lists as well as the original count-based configuration.
+    if isinstance(participants, list):
+        if len(participants) != 3 or any(role not in ("human", "ai") for role in participants):
+            raise ValueError("Expected three roles, each human or ai")
+        participants = {"humans": participants.count("human"), "ai": participants.count("ai")}
     if not isinstance(participants, dict) or set(participants) != {"humans", "ai"}:
         raise ValueError("Expected participants.humans and participants.ai")
     return ExperimentConfig(**participants, discussion_seconds=data["discussion_seconds"],

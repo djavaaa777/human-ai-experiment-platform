@@ -4,6 +4,7 @@ import asyncio
 import secrets
 
 from .engine import ExperimentSession
+from .scripted_ai import ScriptedPlayers
 
 
 class SessionHub:
@@ -11,6 +12,12 @@ class SessionHub:
         self.engine = engine
         self._tokens: dict[str, str] = {}
         self._connections: dict[str, asyncio.Queue] = {}
+        self._scripted_players = ScriptedPlayers(engine.ai_labels())
+
+    def tick(self) -> None:
+        self.engine.tick()
+        self._scripted_players.step(self)
+        self.broadcast_state()
 
     def join(self) -> dict:
         player = self.engine.join_human()
@@ -68,10 +75,17 @@ class SessionHub:
 
     def handle(self, player: str, action) -> None:
         if action.type == "chat":
-            message = self.engine.post_chat(player, action.text, round_number=action.round)
-            self.broadcast({"type": "chat", **message})
+            self.submit_chat(player, action.text, round_number=action.round)
         else:
-            self.engine.cast_vote(player, action.target, round_number=action.round)
-            # Broadcast participation but keep each ballot choice private until totals.
-            self.broadcast({"type": "vote_received", "player": player, "round": action.round})
+            self.submit_vote(player, action.target, round_number=action.round)
+
+    def submit_chat(self, player: str, text: str, *, round_number: int) -> None:
+        message = self.engine.post_chat(player, text, round_number=round_number)
+        self.broadcast({"type": "chat", **message})
+        self.broadcast_state()
+
+    def submit_vote(self, player: str, target: str, *, round_number: int) -> None:
+        self.engine.cast_vote(player, target, round_number=round_number)
+        # Human and scripted players use identical public envelopes.
+        self.broadcast({"type": "vote_received", "player": player, "round": round_number})
         self.broadcast_state()
