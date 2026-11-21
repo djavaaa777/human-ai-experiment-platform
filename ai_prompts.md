@@ -67,6 +67,23 @@ keys, participant data, or other secrets.
   ticks, and WebSocket delivery. The existing non-failing HTTPX deprecation warning
   remains. No live browser walkthrough was run.
 
+### Stage 5 — React/Vite frontend
+
+- Tool: Codex
+- Request summary: Build five minimal responsive screens using the existing HTTP
+  and WebSocket protocol, show messages/countdowns/votes/results, persist reconnect
+  tokens in localStorage, and keep roles hidden. No commits.
+- Assistance: Added React views, socket/reconnect handling, pure event-state helpers,
+  responsive CSS, Vite HTTP/WebSocket proxies, dependency lockfile, tests, and local
+  run instructions. Used the Sites skill's local-only workflow; no publication.
+- Human review: Pending.
+- Verification: Four frontend protocol tests and the production build passed.
+  A local HTTP/WebSocket smoke test through Vite to FastAPI passed join, waiting,
+  chat, voting, final results, and reconnect checks. All 21 backend tests passed
+  on rerun after an intermittent TestClient cancellation in reconnect cleanup.
+  Browser automation was unavailable, so no visual/click-through verification
+  was performed. No backend source changes were required.
+
 ## Template for subsequent interactions
 
 ### Stage / topic

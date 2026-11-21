@@ -3,15 +3,16 @@
 Core Python experiment engine for a Student Research Assistant technical
 assessment at the Center for Humans and Machines. A minimal FastAPI HTTP/WebSocket
 server now wraps the engine using in-memory storage and local scripted AI players.
-Frontend, database, and Docker integration are not implemented yet. See
+The React/Vite frontend is implemented; database and Docker integration remain
+deferred. See [frontend setup and testing](frontend/README.md) and
 [server setup, protocol, and manual testing](backend/API.md).
 
 ## Proposed architecture
 
 Use three Docker Compose services: a React frontend (Vite), a Python FastAPI
 backend, and PostgreSQL. Compose will eventually build and start all three with
-`docker compose up --build`. Compose files, dependencies, and runnable entry
-points are deliberately deferred to the implementation stage.
+`docker compose up --build`. Compose files are deferred. The frontend and backend
+currently run separately using the commands in `frontend/README.md`.
 
 - **React:** Render the waiting room, discussion, vote, and results views from
   server state. Send participant actions to the backend; display its deadlines.
@@ -58,7 +59,18 @@ backend/
   API.md
 frontend/
   src/
-    .gitkeep
+    App.jsx
+    main.jsx
+    protocol.js
+    useExperiment.js
+    styles.css
+  tests/
+    protocol.test.js
+  package.json
+  package-lock.json
+  vite.config.js
+  index.html
+  README.md
 config.yml
 .gitignore
 ai_prompts.md
@@ -66,9 +78,8 @@ README.md
 ```
 
 In later stages, add database models/access within
-`backend/app/`. Add the React entry
-point and views within `frontend/src/`. Add dependency manifests, Dockerfiles,
-and Compose at that point. Avoid empty layers and abstractions until needed.
+`backend/app/`, then Dockerfiles and Compose. Avoid empty layers and abstractions
+until needed.
 
 ## Configuration examples
 
