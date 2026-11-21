@@ -1,1 +1,1 @@
-"""Backend package; experiment implementation will follow in a later stage."""
+"""Standalone experiment engine; transport and persistence are not implemented."""

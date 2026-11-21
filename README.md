@@ -1,7 +1,8 @@
 # Three-player group decision experiment
 
-Stage 1 scaffold for a Student Research Assistant technical assessment at the
-Center for Humans and Machines. No experiment logic is implemented yet.
+Core Python experiment engine for a Student Research Assistant technical
+assessment at the Center for Humans and Machines. Transport, frontend, database,
+AI behavior, and Docker integration are not implemented yet.
 
 ## Proposed architecture
 
@@ -28,19 +29,24 @@ points are deliberately deferred to the implementation stage.
 
 ## Participant identity
 
-Give every participant the same kind of public label, such as Player 1–3.
+Give every participant one of the public labels A, B, and C.
 Keep the human/AI assignment and join credentials private on the server. Use
 explicit public response schemas so configuration, AI prompts, provider errors,
 and player type never enter participant payloads. Render all players identically.
 This hides system-provided identity cues; conversational behavior may still let
 participants infer an AI's identity.
 
-## Initial structure
+## Current structure
 
 ```text
 backend/
   app/
     __init__.py
+    config.py
+    engine.py
+  tests/
+    test_engine.py
+  requirements.txt
 frontend/
   src/
     .gitkeep
@@ -50,7 +56,7 @@ ai_prompts.md
 README.md
 ```
 
-In the implementation stage, add the FastAPI entry point, session coordinator,
+In later stages, add the FastAPI entry point,
 database models/access, and AI adapter within `backend/app/`. Add the React entry
 point and views within `frontend/src/`. Add dependency manifests, Dockerfiles,
 and Compose at that point. Avoid empty layers and abstractions until needed.
@@ -76,15 +82,70 @@ AI credentials will come from environment variables, never this YAML file.
 - Store research records in PostgreSQL, but defer automatic recovery of an
   interrupted session after a backend restart. Persistence alone does not provide
   timer or session recovery.
-- Use server deadlines to avoid client clock authority. Participant reconnect,
-  missing-vote handling, and tie rules need explicit behavior in the next stage.
+- Use server deadlines to avoid client clock authority. Participant reconnect
+  remains deferred; missing votes and ties are handled as documented below.
 - Use a Vite development server in the initial Compose setup for speed. Production
   hosting, authentication, and deployment hardening are outside this assessment.
 - Keep AI behind a small adapter so provider choice can change without rewriting
   session logic. Identity masking cannot guarantee that humans never guess which
   players are AI.
 
-## Current verification status
+## Engine API
 
-No application tests, builds, or Docker startup have been run. This stage contains
-only a scaffold, configuration, and documentation; it is not runnable yet.
+Use Python 3.10 or newer. `load_config(path)` in `app.config` reads and validates
+the server-only YAML into an immutable `ExperimentConfig`. Construct
+`ExperimentSession(config)` from `app.engine` for each session.
+
+| Method | Purpose |
+| --- | --- |
+| `join_human()` | Allocate and return a human's label; the last required human starts round 1. Reject joins after startup. |
+| `ai_labels()` | Server-only assignments for a future AI adapter. Never expose these to clients. |
+| `tick()` | Advance every expired phase using the server's monotonic clock. |
+| `cast_vote(voter, target, round_number=...)` | Accept a valid vote, or raise `ExperimentError`. The round argument prevents stale votes being accepted in round 2. |
+| `public_state()` | Return a fresh dictionary with labels, phase, round, seconds remaining, and final results. No roles, joined-label lists, or configuration. |
+
+The waiting room has round 0 and no deadline. AI slots are reserved at creation;
+only humans need to join. Roles are randomly assigned to labels so A, B, or C
+does not consistently mean human or AI. Do not serialize the session/config
+objects; use only `public_state()` as the shared client payload.
+
+The engine is synchronous and has no background thread. A future server scheduler
+must call `tick()` regularly, even when clients send no actions, and serialize
+all operations on a session. This is the integration contract for automatic
+deadline progression. Reads and votes also process elapsed deadlines. The clock
+can be injected for deterministic tests, but must never come from client input.
+The public countdown is informational; only the server's internal deadline
+controls transitions. Delayed ticks catch up against the original schedule.
+
+Each player may cast at most one vote in each round, for A, B, or C, including
+themselves. A missing vote is an abstention, so voting does not block completion.
+Voting always lasts its configured duration, even if all three votes arrive
+early. Actions at the exact deadline are processed in the next phase. Results
+remain hidden until both rounds finish.
+
+Final totals sum both rounds. **Ties are resolved alphabetically by label** to
+make the result deterministic without a third round. This favors earlier labels
+in a tie; if nobody votes, all totals are zero and A wins by the same rule.
+
+The future transport must bind each human connection to its allocated label and
+derive `voter` from that binding. The core engine validates labels and phases,
+but does not implement authentication. `join_human()` allocates a new slot per
+call; reconnect and duplicate-join handling belong in that future binding layer.
+
+## Running the unit tests
+
+From the project root in PowerShell (with Python installed/on PATH):
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r backend/requirements.txt
+Set-Location backend
+..\.venv\Scripts\python.exe -m unittest discover -s tests -v
+```
+
+On macOS/Linux, use `python3 -m venv .venv`, install with
+`.venv/bin/python -m pip install -r backend/requirements.txt`, then run
+`../.venv/bin/python -m unittest discover -s tests -v` from `backend/`.
+
+Tests use the standard-library `unittest` runner and a fake clock: no sleeps,
+network services, or database are needed. PyYAML is the only runtime dependency.

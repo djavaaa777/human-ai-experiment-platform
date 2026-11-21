@@ -17,6 +17,24 @@ keys, participant data, or other secrets.
 - Human review: Pending.
 - Validation: No application tests run; no runnable application exists at this stage.
 
+### Stage 2 — Standalone experiment engine
+
+- Tool: Codex
+- Request summary: Implement only a Python state machine for three anonymous
+  players, YAML-derived private roles, a human waiting room, two timed discussion
+  and voting rounds, one vote per player per round, and combined final results
+  with alphabetical tie-breaking. Add focused unit tests; no integrations or commits.
+- Assistance: Added validated configuration loading, randomized private role
+  assignments, a synchronous engine with injectable server clock, public snapshots,
+  and 11 unit tests. Documented fixed voting windows, abstentions, alphabetical
+  ties (including an all-zero result), and the future server tick-loop contract.
+- Human review: Pending.
+- Verification: The first test commands encountered a discovery-path error and
+  then missing PyYAML. Created a local ignored virtual environment and installed
+  the declared dependency. Ran `..\.venv\Scripts\python.exe -m unittest discover
+  -s tests -v` from `backend/`: all 11 tests passed. No frontend, database,
+  WebSocket, or Docker tests were run.
+
 ## Template for subsequent interactions
 
 ### Stage / topic
