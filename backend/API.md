@@ -90,7 +90,7 @@ For a two-person walkthrough, temporarily change `config.yml` to `humans: 2` and
 `ai: 1`, and optionally shorten discussion/voting durations to 20/15 seconds.
 Restart the server after editing. The third slot will automatically send scripted
 discussion messages and vote in both rounds. Restore your desired settings
-after the walkthrough. With the unchanged three-human default, a third join is
+after the walkthrough. With a three-human configuration, a third join is
 required before discussion starts.
 
 1. Open `http://127.0.0.1:8000/docs` in two separate browser tabs. Open each tab's

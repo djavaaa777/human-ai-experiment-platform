@@ -1,221 +1,256 @@
-# Three-player group decision experiment
+# Human-AI Experiment Platform
 
-Core Python experiment engine for a Student Research Assistant technical
-assessment at the Center for Humans and Machines. A minimal FastAPI HTTP/WebSocket
-server now wraps the engine using in-memory storage and local scripted AI players.
-The React/Vite frontend and PostgreSQL persistence are implemented. Run the full
-application with `docker compose up --build`, then open **http://localhost:8081**.
-See [Docker deployment, database verification, and restart limitations](DEPLOYMENT.md),
-[frontend setup and testing](frontend/README.md), and
-[server setup, protocol, and manual testing](backend/API.md).
+A minimal three-player group decision-making experiment prepared for the Student
+Research Assistant - Full-Stack Developer technical assessment at the Center for
+Humans and Machines, Max Planck Institute. Participants discuss who should become
+the Decision Maker and vote after each of two discussion rounds.
+
+The application supports three humans, two humans plus one scripted AI player,
+or one human plus two scripted AI players. Everyone appears as **Player A, B, or
+C**. Public HTTP and WebSocket payloads omit human/AI roles.
+
+## Quick start with Docker
+
+Prerequisites: Docker Desktop running Linux containers, Docker Compose v2, and
+host port **8081** available. From the repository root:
+
+```sh
+docker compose up --build
+```
+
+Open **http://localhost:8081**. The current working configuration is a solo demo:
+**one human, two AI players, 60-second discussions, and 30-second voting phases**.
+Joining starts the experiment immediately in this mode. Other configurations wait
+for all required human participants.
+
+Only two containers run: PostgreSQL and the application. The multi-stage Dockerfile
+builds React, then FastAPI serves the resulting static files, API, and WebSocket
+endpoint together. No separate frontend server, API key, or `.env` setup is needed.
+A random database password is generated inside a Docker volume, never in source.
+
+Check startup in another terminal:
+
+```sh
+docker compose ps
+docker compose logs --tail=50 app db
+docker compose exec db pg_isready -U experiment -d experiment
+```
+
+Open `http://localhost:8081/health`, or run in PowerShell:
+
+```powershell
+Invoke-RestMethod http://localhost:8081/health
+```
+
+Expected response: `{"status":"ok","database":"ok"}`. This checks the app's
+database connection with `SELECT 1`. The Compose image build and startup have
+**not been run in the development environment**, where Docker is unavailable.
+See [DEPLOYMENT.md](DEPLOYMENT.md) for database inspection and restart checks.
+
+## Technology stack
+
+| Layer | Technology |
+| --- | --- |
+| UI | React 19, JavaScript, plain responsive CSS |
+| Frontend build | Vite 7, npm lockfile |
+| Server | Python 3.12 in Docker, FastAPI, Uvicorn, Pydantic |
+| Real-time transport | Native browser WebSocket and FastAPI WebSocket endpoint |
+| Storage | PostgreSQL 17 container, Psycopg 3 parameterized queries |
+| Configuration | YAML parsed with PyYAML |
+| Tests | Python unittest/FastAPI TestClient; Node's built-in test runner |
+| Packaging | Docker multi-stage build and Docker Compose v2 |
 
 ## Architecture
 
-Use two Docker Compose services: PostgreSQL and FastAPI, which serves the built
-React frontend along with its API and WebSocket endpoint. Vite remains available
-for separate frontend development using the commands in `frontend/README.md`.
+```text
+Browser: React UI + private reconnect token in localStorage
+    | HTTP /api/join; WebSocket /ws
+    v
+FastAPI: API routes, authentication, static files, background ticker
+    |
+SessionHub: identity bindings, broadcasts, persistence, scripted-player adapter
+    |                          |
+    v                          v
+ExperimentSession          PostgresStore
+phase and voting rules     parameterized transactions
+                               |
+                               v
+                           PostgreSQL
+```
 
-- **React:** Render the waiting room, discussion, vote, and results views from
-  server state. Send participant actions to the backend; display its deadlines.
-- **FastAPI:** Own one session with three player slots. Use HTTP for joining and
-  WebSockets for chat, actions, and authoritative state updates. A single session
-  coordinator will advance waiting room → discussion 1 → vote 1 → discussion 2
-  → vote 2 → final results. Enforce phase deadlines and action validity here.
-- **PostgreSQL:** Persist sessions, private role assignments, messages, votes, and
-  final results using parameterized Psycopg queries. Three tables are initialized
-  at startup; introduce migrations when schema evolution becomes necessary.
-- **AI adapter:** Run inside the backend and submit actions through the same
-  validation path as humans. Keep provider calls outside the coordinator and
-  apply a timeout so a slow AI response cannot block phase transitions.
-- **Configuration:** Load root `config.yml` on the backend only. At startup,
-  validate integer counts totaling three, with one to three humans and zero to
-  two AI players, plus positive phase durations. There are exactly two rounds.
-
-## Participant identity
-
-Give every participant one of the public labels A, B, and C.
-Keep the human/AI assignment and join credentials private on the server. Use
-explicit public response schemas so configuration, AI prompts, provider errors,
-and player type never enter participant payloads. Render all players identically.
-This hides system-provided identity cues; conversational behavior may still let
-participants infer an AI's identity.
-
-## Current structure
+`backend/app/engine.py` owns the state machine independently of HTTP and SQL:
 
 ```text
-backend/
-  app/
-    __init__.py
-    config.py
-    engine.py
-    main.py
-    session.py
-    scripted_ai.py
-    storage.py
-    schema.sql
-  tests/
-    test_engine.py
-    test_api.py
-    test_scripted_ai.py
-    test_persistence.py
-  requirements.txt
-  requirements-dev.txt
-  API.md
-frontend/
-  src/
-    App.jsx
-    main.jsx
-    protocol.js
-    useExperiment.js
-    styles.css
-  tests/
-    protocol.test.js
-  package.json
-  package-lock.json
-  vite.config.js
-  index.html
-  README.md
-config.yml
-.gitignore
-ai_prompts.md
-README.md
-DEPLOYMENT.md
-Dockerfile
-compose.yml
-docker/start-postgres.sh
+Waiting -> Discussion 1 -> Voting 1 -> Discussion 2 -> Voting 2 -> Final Results
 ```
 
-The state machine remains separate from storage and transport. Docker packages
-the frontend build and backend together; PostgreSQL runs as the second service.
+- The engine shuffles labels at creation and starts when all human slots are filled.
+- A server ticker processes deadlines every 250 ms. Clients display the server's
+  remaining time but cannot advance phases or choose their sender identity.
+- Chat and votes from both humans and scripted players go through the same engine
+  validation and hub broadcast methods.
+- `storage.py` writes accepted actions before broadcasting them. `schema.sql`
+  defines three tables: sessions, messages, and votes. Session rows include final
+  totals and winner, so no separate results table is needed.
+- The database stores private configuration/role assignments for research records;
+  these are not exposed through participant endpoints.
 
-## Configuration examples
+Key files:
 
-The default is three humans. Change only the participant counts for other modes:
+| Location | Responsibility |
+| --- | --- |
+| `backend/app/config.py` | Configuration validation |
+| `backend/app/engine.py` | State machine, chat and voting rules, totals |
+| `backend/app/main.py` | FastAPI lifecycle, routes, WebSocket schemas, static hosting |
+| `backend/app/session.py` | Participant tokens, queues, broadcasts, persistence hooks |
+| `backend/app/scripted_ai.py` | Predefined discussion messages and deterministic votes |
+| `backend/app/storage.py`, `schema.sql` | PostgreSQL repository and schema |
+| `frontend/src/App.jsx` | Join, Waiting Room, Discussion Chat, Voting, Final Results |
+| `frontend/src/useExperiment.js`, `protocol.js` | Reconnects, protocol state, countdown |
+| `compose.yml`, `Dockerfile`, `docker/start-postgres.sh` | Deployment and credential bootstrap |
 
-| Mode | `participants.humans` | `participants.ai` |
-| --- | --- | --- |
-| All human | 3 | 0 |
-| One AI | 2 | 1 |
-| Two AI | 1 | 2 |
+## YAML configuration
 
-`discussion_seconds: 120` and `voting_seconds: 30` apply to each round.
-Scripted AI requires no credentials.
-
-## Scripted AI participants
-
-The original count format remains supported. Alternatively, set `participants`
-to any of these YAML lists (keep the duration fields unchanged):
+The current `config.yml` contains:
 
 ```yaml
-participants: [human, human, human]
-# Or: participants: [human, human, ai]
-# Or: participants: [human, ai, ai]
+participants:
+  humans: 1
+  ai: 2
+discussion_seconds: 60
+voting_seconds: 30
 ```
 
-List order does not fix role-to-label assignment. The engine shuffles A, B, and C
-at session creation, then privately reserves the required human and AI slots.
-The last required human join immediately starts discussion; no AI connection or
-join request is needed.
+Durations apply to each round and must be positive integers. There are always
+exactly three players and exactly two rounds. Supported compositions:
 
-`ScriptedPlayers.step()` runs from the existing server ticker. Once per discussion
-round, each AI nominates the next label cyclically (A nominates B, B nominates C,
-C nominates A). It submits one vote for that same label in each voting round.
-Round two uses a short follow-up message. Actions occur on the first scheduler
-tick that observes the phase, normally within 250 ms. A private completed-action
-set prevents repeat ticks from sending duplicate messages or votes.
+| Humans | AI | Equivalent YAML role list |
+| --- | --- | --- |
+| 3 | 0 | `participants: [human, human, human]` |
+| 2 | 1 | `participants: [human, human, ai]` |
+| 1 | 2 | `participants: [human, ai, ai]` |
 
-Humans and AI share `SessionHub.submit_chat()` and `submit_vote()`, which call the
-engine for validation and emit the same broadcast envelopes. Roles are never
-added to public events, join responses, or history. The script cannot change
-deadlines, and entirely missed phases are not replayed after a scheduler stall.
+Use either the count mapping or the role list. List order does not assign public
+labels; role-to-label assignments are shuffled separately. Configuration is loaded
+server-side from a read-only mount. After editing it:
 
-Scripted behavior was chosen for the time-limited assessment because it is easy
-to explain, test, and reproduce, runs offline, and needs no credentials, external
-LLM calls, paid services, or additional dependencies. For a fixed label assignment
-its messages and votes are deterministic; only role assignment is randomized.
-This is a functional simulation, not an adaptive conversational model. Repeated
-wording and timing may let participants infer roles despite role-free payloads.
+```sh
+docker compose restart app
+```
 
-The full suite now contains 21 passing tests, including all three YAML role lists,
-AI actions in both rounds, duplicate suppression, label shuffling, deterministic
-behavior, expired-phase handling, and delivery through the in-process WebSocket
-test client.
+This starts a **new** session. For multiple human participants, use separate browser
+profiles or browsers: tabs in the same profile share localStorage and the same
+identity. Connecting the same token twice replaces the older connection.
 
-## Scope and trade-offs
+## API and reconnects
 
-- Target one three-player session per deployment and one backend worker for the
-  two-hour build. In-memory coordination avoids Redis and distributed locking;
-  multiple workers or concurrent sessions require additional coordination.
-- Store research records in PostgreSQL, but defer automatic recovery of an
-  interrupted session after a backend restart. Persistence alone does not provide
-  timer or session recovery.
-- Use server deadlines to avoid client clock authority. Token-based reconnect
-  works while the app process remains alive; restarts create a fresh session.
-- FastAPI serves the built frontend in Compose; Vite is only for development.
-  Production hosting and deployment hardening are outside this assessment.
-- Keep AI behind a small adapter so provider choice can change without rewriting
-  session logic. Identity masking cannot guarantee that humans never guess which
-  players are AI.
-
-## Engine API
-
-Use Python 3.10 or newer. `load_config(path)` in `app.config` reads and validates
-the server-only YAML into an immutable `ExperimentConfig`. Construct
-`ExperimentSession(config)` from `app.engine` for each session.
-
-| Method | Purpose |
+| Endpoint | Purpose |
 | --- | --- |
-| `join_human()` | Allocate and return a human's label; the last required human starts round 1. Reject joins after startup. |
-| `ai_labels()` | Server-only assignments for a future AI adapter. Never expose these to clients. |
-| `tick()` | Advance every expired phase using the server's monotonic clock. |
-| `cast_vote(voter, target, round_number=...)` | Accept a valid vote, or raise `ExperimentError`. The round argument prevents stale votes being accepted in round 2. |
-| `public_state()` | Return a fresh dictionary with labels, phase, round, seconds remaining, and final results. No roles, joined-label lists, or configuration. |
+| `POST /join` or `POST /api/join` | Allocate a human slot; return label, private token, public state |
+| `WS /ws` | Authenticate, chat, vote, receive real-time events |
+| `GET /health` | Application/database readiness |
+| `GET /docs` | HTTP API documentation |
+| `GET /` | Built React frontend |
 
-The waiting room has round 0 and no deadline. AI slots are reserved at creation;
-only humans need to join. Roles are randomly assigned to labels so A, B, or C
-does not consistently mean human or AI. Do not serialize the session/config
-objects; use only `public_state()` as the shared client payload.
+The first WebSocket frame is `{"type":"auth","token":"YOUR_TOKEN"}`. Actions:
 
-The engine is synchronous and has no background thread. The FastAPI server scheduler
-calls `tick()` regularly, even when clients send no actions, and serializes
-all operations on a session. This is the integration contract for automatic
-deadline progression. Reads and votes also process elapsed deadlines. The clock
-can be injected for deterministic tests, but must never come from client input.
-The public countdown is informational; only the server's internal deadline
-controls transitions. Delayed ticks catch up against the original schedule.
+```json
+{"type":"chat","text":"I suggest Player B.","round":1}
+{"type":"vote","target":"B","round":1}
+```
 
-Each player may cast at most one vote in each round, for A, B, or C, including
-themselves. A missing vote is an abstention, so voting does not block completion.
-Voting always lasts its configured duration, even if all three votes arrive
-early. Actions at the exact deadline are processed in the next phase. Results
-remain hidden until both rounds finish.
+`welcome` restores identity, recent chat and voted rounds. `state`, `chat`, and
+`vote_received` update all connected clients; `error` goes only to the sender.
+Ballot targets are not broadcast. Tokens stay out of URLs and public payloads.
+Full schemas and console testing instructions: [backend/API.md](backend/API.md).
 
-Final totals sum both rounds. **Ties are resolved alphabetically by label** to
-make the result deterministic without a third round. This favors earlier labels
-in a tie; if nobody votes, all totals are zero and A wins by the same rule.
+## Design decisions
 
-The transport binds each human connection to its allocated label using a private
-token and derives `voter` from that binding. The core engine validates labels and
-phases, but does not implement authentication. `join_human()` allocates a new slot
-per call; the transport reconnects with the existing token instead of joining again.
-The engine also exposes `post_chat()` for discussion/round/text validation,
-`chat_history()` for the last 100 messages, and `voted_rounds(player)` for private
-reconnect status.
+- **Fixed server deadlines:** voting ends at its deadline even if all ballots arrive
+  early. A missing vote is an abstention, so an absent player cannot stall a round.
+- **One vote per player per round:** enforced by the engine and a database primary
+  key. Self-votes are allowed. The UI locks a ballot after server acknowledgement.
+- **Combined results:** totals include both rounds. Alphabetical order breaks ties;
+  if no votes are cast, A wins the all-zero tie. This rule is deterministic but
+  intentionally favors earlier labels when tied.
+- **Scripted AI:** once per round, each AI nominates the next label cyclically
+  (A to B, B to C, C to A), sends a short predefined message, and votes accordingly.
+  This makes behavior reproducible and testable without network latency, API keys,
+  external language models, or paid services. It is not adaptive conversation.
+- **One active session/worker:** in-memory coordination keeps the assessment small.
+  PostgreSQL retains records, while the engine remains the sole authority for rules.
+- **Safe persistence:** parameterized queries and transactions prevent text from
+  becoming SQL. A write failure stops new actions and makes health return 503;
+  restart after fixing the database rather than continuing with divergent state.
 
-## Running the unit tests
+## Persistence and known limitations
 
-From the project root in PowerShell (with Python installed/on PATH):
+**Active sessions do not survive application restarts.** Every startup creates a new
+session UUID and marks previous active sessions interrupted. Committed messages,
+votes, and completed results survive in the PostgreSQL volume. Tokens, live timers,
+and socket bindings do not. The UI offers to clear an expired identity and rejoin.
+
+- One session per process, one worker, no automatic session reset after completion.
+- No admin/export UI, schema migration framework, or full restart recovery.
+- Synchronous database writes can delay the server loop; queries have a timeout.
+  A scheduler stall can skip expired phases and their scripted actions.
+- Only the most recent 100 messages are replayed on reconnect; all committed
+  messages remain in PostgreSQL.
+- No role fields reach clients, but scripted wording/timing can reveal behavioral
+  cues. The implementation cannot guarantee that participants never infer roles.
+- This is a local assessment prototype: no participant admission controls,
+  rate limiting, TLS termination, or production access policy. Join is not
+  idempotent; a lost join response can consume a slot without delivering its token.
+- Dependencies/images are not all pinned to immutable digests. The frontend has
+  a lockfile; Python transitive dependencies can change between installs.
+- Docker cold startup and a visual browser walkthrough are still unverified.
+  A previous backend run hit intermittent TestClient cancellation during reconnect
+  cleanup; subsequent runs passed. HTTPX emits a non-failing deprecation warning.
+
+`docker compose down` preserves data. **`docker compose down -v` deletes research
+records and generated database credentials.** Keep the database and credential
+volumes together. See [DEPLOYMENT.md](DEPLOYMENT.md) for details.
+
+## Development and tests
+
+For separate local FastAPI/Vite processes, see [frontend/README.md](frontend/README.md).
+Without `DATABASE_URL` or `PGHOST`, the local backend runs in memory; Compose sets
+the PostgreSQL connection variables automatically.
+
+From the project root in PowerShell (Python installed):
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r backend/requirements-dev.txt
-Set-Location backend
+cd backend
 ..\.venv\Scripts\python.exe -m unittest discover -s tests -v
+cd ../frontend
+npm ci
+npm test
+npm run build
 ```
 
-On macOS/Linux, use `python3 -m venv .venv`, install with
-`.venv/bin/python -m pip install -r backend/requirements-dev.txt`, then run
-`../.venv/bin/python -m unittest discover -s tests -v` from `backend/`.
+Use `npm.cmd` if PowerShell blocks `npm.ps1`. On macOS/Linux use `python3` and
+`.venv/bin/python` paths. For real database tests, set `TEST_DATABASE_URL` to a
+test database whose user can create schemas; tests isolate and remove their own
+schemas. Do not point tests at participant data.
 
-Tests use the standard-library `unittest` runner, a fake clock, and FastAPI's
-in-process TestClient. No external services or database are needed.
+Verified evidence as of the submission review:
+
+| Check | Result |
+| --- | --- |
+| Current backend suite | 23 passed, 2 PostgreSQL tests skipped (no test DB configured) |
+| Prior PostgreSQL integration run | All 25 passed on a temporary PostgreSQL 18 cluster |
+| Current frontend protocol tests | 4 passed |
+| Current frontend production build | Passed with Vite 7.3.8 |
+| Prior live HTTP/WebSocket proxy smoke test | Passed join, chat, voting, results and reconnect |
+| Docker image/Compose startup | Not run; Docker unavailable |
+| Browser visual/click-through verification | Not performed; browser access unavailable |
+
+## Assessment and submission
+
+[SUBMISSION_CHECKLIST.md](SUBMISSION_CHECKLIST.md) maps requirements to source and
+records remaining verification steps. [ai_prompts.md](ai_prompts.md) contains the
+actual user prompts available in this conversation, tool provenance, and verified
+activity. The exact model revision is not available in the record and is explicitly
+marked unverified. No working application logic was changed during this review.

@@ -20,9 +20,9 @@ There are only two services:
 
 The root `config.yml` is mounted read-only and loaded at application startup.
 Change it, then use `docker compose restart app` to apply new parameters. This
-starts a new experiment. The default requires three human participants; test with
-separate browser profiles, or configure one human and two AI players for a solo
-walkthrough. Do not run more than one application worker or replica.
+starts a new experiment. The current config uses one human and two AI players
+for a solo walkthrough. For multi-human modes, test with separate browser profiles.
+Do not run more than one application worker or replica.
 
 ## Verify startup and connectivity
 

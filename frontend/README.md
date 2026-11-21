@@ -37,8 +37,8 @@ production hosting will need equivalent HTTP/WebSocket routing.
 
 ## Try the experiment
 
-The default configuration requires three human joins. Use separate browser
-profiles/browsers for different participants. Tabs in the same browser profile
+The current configuration uses one human and two AI players. Use separate browser
+profiles/browsers for different participants when testing multi-human modes. Tabs in the same browser profile
 share localStorage and therefore represent the **same player**; a new connection
 replaces the old one. For a solo walkthrough, set `humans: 1` and `ai: 2` in the
 root `config.yml`, then restart the backend. Short durations make testing quicker.
